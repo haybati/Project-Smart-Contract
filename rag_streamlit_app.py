@@ -16,7 +16,7 @@ def load_embeddings(filepath):
     with open(filepath, "r", encoding="utf-8") as f:
         for line in f:
             item = json.loads(line)
-            chunks.append(item["text"])
+            chunks.append(item["chunk"])
             embeddings.append(item["embedding"])
     return chunks, np.array(embeddings)
 
