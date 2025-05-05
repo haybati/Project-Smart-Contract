@@ -6,7 +6,7 @@ import tiktoken
 from sklearn.metrics.pairwise import cosine_similarity
 
 # Konfigurasi awal
-openai.api_key = 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  # Ganti dengan API Key Anda
+openai.api_key = "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"  # Ganti dengan API Key Anda
 EMBEDDING_FILE = "embedding.jsonl"
 MODEL = "text-embedding-3-small"
 
