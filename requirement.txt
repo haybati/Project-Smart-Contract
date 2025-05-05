@@ -1,0 +1,6 @@
+streamlit
+openai
+tiktoken
+scikit-learn
+pypdf
+python-docx
