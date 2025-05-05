@@ -7,7 +7,18 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 # Set API key dari secret
 openai.api_key = os.getenv("OPENAI_API_KEY")
-
+#PERCOBAAN
+try:
+    with open("chunk.txt", "r", encoding="utf-8") as file:
+        item["chunk"] = file.read()
+        print(f"Item chunk: {item['chunk']}")
+except FileNotFoundError:
+    print("chunk.txt file not found.")
+except KeyError:
+    print("Key 'chunk' not found in the item.")
+except Exception as e:
+    print(f"An error occurred: {e}")
+    
 # Load embeddings
 @st.cache_resource
 def load_embeddings(filepath):
