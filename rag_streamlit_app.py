@@ -1,69 +1,83 @@
 import streamlit as st
 import openai
 import json
+import os
 import numpy as np
-import tiktoken
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Konfigurasi awal
-openai.api_key = "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"  # Ganti dengan API Key Anda
-EMBEDDING_FILE = "embedding.jsonl"
-MODEL = "text-embedding-3-small"
+# Set API key dari secret
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Load semua embedding dari file
-@st.cache_data
+# Load embeddings
+@st.cache_resource
 def load_embeddings(filepath):
     chunks = []
-    vectors = []
+    embeddings = []
     with open(filepath, "r", encoding="utf-8") as f:
         for line in f:
-            obj = json.loads(line)
-            chunks.append(obj["text"])
-            vectors.append(obj["embedding"])
-    return chunks, np.array(vectors)
+            item = json.loads(line)
+            chunks.append(item["chunk"])
+            embeddings.append(item["embedding"])
+    return chunks, np.array(embeddings)
 
-# Embed pertanyaan
-def get_query_embedding(query):
-    response = openai.embeddings.create(
-        input=[query],
-        model=MODEL
+# Hitung similarity dan ambil top-N
+def get_top_chunks(query_embedding, embeddings, chunks, top_k=5):
+    similarities = cosine_similarity([query_embedding], embeddings)[0]
+    top_indices = similarities.argsort()[-top_k:][::-1]
+    return [chunks[i] for i in top_indices]
+
+# Kirim query ke OpenAI
+def query_rag(query, chunks, embeddings):
+    # Aturan yang wajib ditambahkan
+    rules = (
+        "Berikut adalah aturan yang WAJIB diikuti dalam menjawab pertanyaan:\n"
+        "1. Sertakan nomor klausul secara lengkap.\n"
+        "2. Sertakan kutipan potongan kalimat asli dari klausul.\n"
+        "3. Tidak boleh mengada-ada atau menyimpulkan di luar isi kontrak.\n\n"
     )
-    return response.data[0].embedding
 
-# Cari top-n chunk paling relevan
-def search_chunks(query, chunks, vectors, top_k=3):
-    query_vector = np.array(get_query_embedding(query)).reshape(1, -1)
-    sims = cosine_similarity(vectors, query_vector).flatten()
-    top_indices = sims.argsort()[-top_k:][::-1]
-    results = [(chunks[i], sims[i]) for i in top_indices]
-    return results
+    # Embed query
+    response = openai.embeddings.create(
+        input=query,
+        model="text-embedding-3-small"
+    )
+    query_embedding = response.data[0].embedding
 
-# App Streamlit
-st.set_page_config(page_title="Smart Contract RAG", layout="wide")
-st.title("🔍 Smart Contract Retrieval (RAG)")
+    # Ambil top context
+    top_chunks = get_top_chunks(query_embedding, embeddings, chunks)
+    context = "\n\n".join(top_chunks)
 
-query = st.text_input("Masukkan pertanyaan Anda:")
+    # Buat prompt lengkap
+    prompt = rules + f"Jawablah pertanyaan berikut berdasarkan konteks:\n\n{context}\n\nPertanyaan: {query}\n\nJawaban:"
 
-if query:
-    with st.spinner("Mencari jawaban..."):
-        chunks, vectors = load_embeddings(EMBEDDING_FILE)
-        top_chunks = search_chunks(query, chunks, vectors, top_k=3)
-        
-        st.subheader("📄 Konteks yang ditemukan:")
-        for i, (chunk, score) in enumerate(top_chunks, 1):
-            st.markdown(f"**Chunk {i} (Score: {score:.4f})**")
-            st.markdown(f"```\n{chunk}\n```")
-        
-        # Opsional: kirim ke ChatGPT untuk menjawab berdasarkan context
-        context = "\n\n".join([c for c, _ in top_chunks])
-        messages = [
-            {"role": "system", "content": "Anda adalah asisten ahli kontrak. Jawablah pertanyaan dengan berdasarkan konteks yang diberikan."},
-            {"role": "user", "content": f"Pertanyaan: {query}\n\nKonteks:\n{context}"}
-        ]
-        completion = openai.chat.completions.create(
-            model="gpt-4",
-            messages=messages
-        )
-        answer = completion.choices[0].message.content
-        st.subheader("💬 Jawaban:")
-        st.write(answer)
+    # Kirim ke OpenAI chat
+    response = openai.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
+    )
+    return response.choices[0].message.content
+
+# Streamlit UI
+st.set_page_config(page_title="RAG Smart Contract App", layout="wide")
+st.title("📄🔍 RAG: Smart Contract QA")
+
+filepath = "embedding.jsonl"  # Pastikan file ini ada di repo dan bukan expired
+
+if not os.path.exists(filepath):
+    st.error("❌ File embedding.jsonl tidak ditemukan. Upload ulang atau periksa nama file.")
+else:
+    chunks, embeddings = load_embeddings(filepath)
+    query = st.text_area("Masukkan pertanyaan terkait kontrak:", height=150)
+
+    if st.button("Jalankan RAG"):
+        if query.strip() == "":
+            st.warning("⚠️ Pertanyaan tidak boleh kosong.")
+        else:
+            with st.spinner("Menjalankan model..."):
+                try:
+                    answer = query_rag(query, chunks, embeddings)
+                    st.success("✅ Jawaban ditemukan:")
+                    st.markdown(answer)
+                except Exception as e:
+                    st.error(f"Terjadi kesalahan saat memproses: {e}")
