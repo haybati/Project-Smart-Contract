@@ -33,7 +33,6 @@ def query_rag(query, chunks, embeddings):
         "Berikut adalah aturan yang WAJIB diikuti dalam menjawab pertanyaan:\n"
         "1. Sertakan nomor klausul secara lengkap.\n"
         "2. Sertakan kutipan potongan kalimat asli dari klausul.\n"
-        "3. Tidak boleh mengada-ada atau menyimpulkan di luar isi kontrak.\n\n"
     )
 
     # Embed query
@@ -52,7 +51,7 @@ def query_rag(query, chunks, embeddings):
 
     # Kirim ke OpenAI chat
     response = openai.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4.1",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2
     )
