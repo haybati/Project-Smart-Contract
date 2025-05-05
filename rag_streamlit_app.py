@@ -21,7 +21,7 @@ def load_embeddings(filepath):
     return chunks, np.array(embeddings)
 
 # Hitung similarity dan ambil top-N
-def get_top_chunks(query_embedding, embeddings, chunks, top_k=20):
+def get_top_chunks(query_embedding, embeddings, chunks, top_k=10):
     similarities = cosine_similarity([query_embedding], embeddings)[0]
     top_indices = similarities.argsort()[-top_k:][::-1]
     return [chunks[i] for i in top_indices]
